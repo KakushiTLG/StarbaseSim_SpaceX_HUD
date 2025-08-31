@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starship HUD</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: black;
+            color: #fff;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Booster Engines - Left Side */
+        .booster-engines-panel {
+            position: absolute;
+            left: 10px;
+            bottom: 55px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        /* Attitude Display - In Center Panel */
+        .attitude-display-booster {
+            position: relative;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            pointer-events: none;
+        }
+        .attitude-display-ship {
+            position: relative;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            pointer-events: none;
+        }
+        
+        .vehicle-attitude {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .attitude-container {
+            position: relative;
+            top: 25px;
+            width: 140px;
+            height: 140px;
+        }
+        
+        .horizon-line {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #ffffff;
+            transform: translateY(-0.5px);
+            z-index: 1;
+        }
+        
+        .vehicle-model {
+            width: 100%;
+            height: 100%;
+            transform-origin: center center;
+            transition: transform 0.2s ease;
+            object-fit: contain;
+        }
+        
+        .attitude-info {
+            text-align: center;
+            font-size: 11px;
+        }
+        
+        .attitude-label {
+            color: #ccc;
+            margin-bottom: 3px;
+        }
+        
+        .pitch-value {
+            color: #fff;
+            font-weight: bold;
+            font-size: 13px;
+        }
+
+        .booster-engines {
+            width: 200px;
+            height: 200px;
+            position: relative;
+        }
+
+        .engine {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+        }
+
+        .engine.running {
+            background: #fff;
+        }
+
+        .engine.stopped {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Ship Engines - Right Side */
+        .ship-engines-panel {
+            position: absolute;
+            right: 60px;
+            bottom: 60px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .ship-engines {
+            width: 200px;
+            height: 200px;
+            position: relative;
+        }
+
+        .ship-engine {
+            position: absolute;
+            border-radius: 50%;
+        }
+
+        .ship-engine.running {
+            background: #fff;
+        }
+
+        .ship-engine.stopped {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Center telemetry and timer */
+        .center-panel {
+            position: absolute;
+            left: 50%;
+            bottom: 40px;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: flex-end;
+        }
+
+        .vehicle-section {
+            display: flex;
+            align-items: flex-end;
+            gap: 20px;
+        }
+
+        .booster-section {
+            flex-direction: row;
+        }
+
+        .ship-section {
+            flex-direction: row-reverse;
+        }
+
+        .center-timer {
+            white-space: nowrap;
+            text-align: center;
+            align-self: flex-end;
+        }
+
+        /* Telemetry */
+        .telemetry {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 140px;
+        }
+
+        .booster-section .telemetry {
+            align-items: flex-start;
+            text-align: left;
+        }
+
+        .ship-section .telemetry {
+            align-items: flex-end;
+            text-align: right;
+        }
+
+        .metric {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .metric-label {
+            font-size: 0.75em;
+            letter-spacing: 0.15em;
+            color: #aaa;
+        }
+
+        .metric-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            display: flex;
+            align-items: baseline;
+            gap: 4px;
+        }
+
+        .metric-unit {
+            font-size: 0.6em;
+            color: #bbb;
+        }
+
+        /* Fuel bars → minimalist lines */
+        .fuel-metric {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 15px;
+            border-radius: 15px; /* маленький радиус */
+            overflow: hidden;   /* если внутри есть фон/границы */
+        }
+
+        .fuel-bar {
+            width: 325px;
+            height: 15px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 15px; /* маленький радиус */
+            overflow: hidden;   /* если внутри есть фон/границы */
+        }
+
+        .fuel-bar-fill {
+            height: 100%;
+        }
+
+        .lox-fill {
+            background: linear-gradient(to right, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 1))
+        }
+
+        .ch4-fill {
+            background: linear-gradient(to right, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 1))
+        }
+
+        /* Mission Timer */
+        .mission-timer {
+            font-size: 2.6em;
+            font-weight: bold;
+            letter-spacing: 0.15em;
+            text-shadow: 0 0 8px rgba(0,0,0,0.8);
+        }
+
+        .mission-subtitle {
+            font-size: 0.9em;
+            color: #aaa;
+            letter-spacing: 0.25em;
+            margin-top: 4px;
+        }
+
+        /* Connection Status */
+        .connection-status {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 0.8em;
+        }
+
+        .connected {
+            background: rgba(0, 255, 0, 0.1);
+            color: #0f0;
+            border: 1px solid #0f0;
+        }
+
+        .disconnected {
+            background: rgba(255, 0, 0, 0.1);
+            color: #f00;
+            border: 1px solid #f00;
+        }
+
+        /* Engine count */
+        .engine-count {
+            margin-top: 10px;
+            font-size: 0.7em;
+            color: #aaa;
+            text-align: center;
+        }
+
+        .engine-count .running {
+            color: #fff;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <!-- Connection Status -->
+    <div id="connectionStatus" class="connection-status disconnected">DISCONNECTED</div>
+    
+
+    <!-- Booster Engines - Left Side -->
+    <div class="booster-engines-panel">
+        <div id="boosterEngines" class="booster-engines"></div>
+    </div>
+
+    <!-- Center Panel -->
+    <div class="center-panel">
+        <!-- Attitude Display -->
+        <!-- Booster Section -->
+        <div class="vehicle-section booster-section">
+            <div class="telemetry">
+                <div class="metric">
+                    <div class="metric-label">SPEED</div>
+                    <div class="metric-value">
+                        <span id="boosterSpeed">0</span>
+                        <span class="metric-unit">KM/H</span>
+                    </div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">ALTITUDE</div>
+                    <div class="metric-value">
+                        <span id="boosterAltitude">0</span>
+                        <span class="metric-unit">KM</span>
+                    </div>
+                </div>
+                <div class="fuel-metric">
+                    <div class="metric-label">LOX</div>
+                    <div class="fuel-bar">
+                        <div class="fuel-bar-fill lox-fill" id="boosterLoxBar" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="fuel-metric">
+                    <div class="metric-label">CH4</div>
+                    <div class="fuel-bar">
+                        <div class="fuel-bar-fill ch4-fill" id="boosterCh4Bar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="attitude-display-booster">
+            <div class="vehicle-attitude">
+                <div class="attitude-container">
+                    <div class="horizon-line"></div>
+                    <img id="boosterModel" src="/static/booster.png" alt="Booster" class="vehicle-model"/>
+                </div>
+            </div>
+        </div>
+        <!-- Mission Timer -->
+        <div class="center-timer">
+            <div class="mission-timer" id="missionTimer">HOLD</div>
+            <div class="mission-subtitle">STARSHIP FLIGHT TEST</div>
+        </div>
+        <div class="attitude-display-ship">
+            <div class="vehicle-attitude">
+                <div class="attitude-container">
+                    <div class="horizon-line"></div>
+                    <img id="shipModel" src="/static/ship.png" alt="Ship" class="vehicle-model"/>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ship Section -->
+        <div class="vehicle-section ship-section">
+            <div class="telemetry">
+                <div class="metric">
+                    <div class="metric-label">SPEED</div>
+                    <div class="metric-value">
+                        <span id="shipSpeed">0</span>
+                        <span class="metric-unit">KM/H</span>
+                    </div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">ALTITUDE</div>
+                    <div class="metric-value">
+                        <span id="shipAltitude">0</span>
+                        <span class="metric-unit">KM</span>
+                    </div>
+                </div>
+                <div class="fuel-metric">
+                    <div class="metric-label">LOX</div>
+                    <div class="fuel-bar">
+                        <div class="fuel-bar-fill lox-fill" id="shipLoxBar" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="fuel-metric">
+                    <div class="metric-label">CH4</div>
+                    <div class="fuel-bar">
+                        <div class="fuel-bar-fill ch4-fill" id="shipCh4Bar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ship Engines - Right Side -->
+    <div class="ship-engines-panel">
+        <div id="shipEngines" class="ship-engines"></div>
+    </div>
+
+    <script src="../static/telemetry.js"></script>
+</body>
+</html>
