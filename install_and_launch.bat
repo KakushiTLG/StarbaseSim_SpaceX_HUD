@@ -45,9 +45,18 @@ if errorlevel 1 (
     exit /b 1
 )
 
+
 echo [4/4] Starting StarbaseSim Telemetry GUI...
 echo.
 echo GUI will be available at: http://localhost:5000
+echo.
+echo Available interfaces:
+echo   - http://localhost:5000          (Original interface)
+echo.
+echo Command line options:
+echo   python main.py --overlay     (auto-start with overlay)
+echo   python main.py --no-overlay  (web-only mode)
+echo   python main.py               (ask user choice)
 echo.
 echo Press Ctrl+C to stop the server
 echo =====================================================

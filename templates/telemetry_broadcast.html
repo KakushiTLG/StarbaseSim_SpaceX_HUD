@@ -106,14 +106,19 @@
             width: 16px;
             height: 16px;
             border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-sizing: border-box;
         }
 
         .engine.running {
             background: #fff;
+            border-color: #fff;
+            box-shadow: 0 0 4px rgba(255, 255, 255, 0.6);
         }
 
         .engine.stopped {
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 1);
+            border-color: rgba(255, 255, 255, 0.4);
         }
 
         /* Ship Engines - Right Side */
@@ -135,14 +140,19 @@
         .ship-engine {
             position: absolute;
             border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-sizing: border-box;
         }
 
         .ship-engine.running {
             background: #fff;
+            border-color: #fff;
+            box-shadow: 0 0 4px rgba(255, 255, 255, 0.6);
         }
 
         .ship-engine.stopped {
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(0, 0, 0, 1);
+            border-color: rgba(255, 255, 255, 0.4);
         }
 
         /* Center telemetry and timer */
@@ -179,8 +189,17 @@
         .telemetry {
             display: flex;
             flex-direction: column;
-            gap: 6px;
             min-width: 140px;
+        }
+
+        .telemetry .metric,
+        .telemetry .fuel-metric {
+            margin-bottom: 10px;
+        }
+
+        .telemetry .metric:last-child,
+        .telemetry .fuel-metric:last-child {
+            margin-bottom: 0;
         }
 
         .booster-section .telemetry {
@@ -297,6 +316,7 @@
             color: #fff;
             font-weight: bold;
         }
+
     </style>
 </head>
 <body>

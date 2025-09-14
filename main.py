@@ -7,6 +7,12 @@ from flask_socketio import SocketIO, emit
 from typing import Dict, List, Optional
 from enum import IntEnum, auto
 import math
+import sys
+import os
+from overlay_app import TelemetryOverlay
+from PyQt5.QtWidgets import QApplication
+import threading
+
 
 class GameCommand(IntEnum):
     NONE = 0
@@ -94,7 +100,7 @@ class StarbaseSimConnector:
         self.data_lock = threading.Lock()
         self.host = "localhost"
         self.port = 12345
-        self.game_send_tick = 0.01
+        self.game_send_tick = 0.1
         self.reconnect_interval = 2.0
         
     def connect_to_server(self) -> bool:
@@ -278,7 +284,24 @@ def emit_telemetry_updates():
             socketio.emit('telemetry_update', data)
         time.sleep(0.1)
 
-if __name__ == '__main__':    
+def start_overlay():
+    try:
+        if not QApplication.instance():
+            qt_app = QApplication(sys.argv)
+        else:
+            qt_app = QApplication.instance()
+
+        overlay = TelemetryOverlay()
+        overlay.show()
+
+        print("Overlay is up! Show/Hide by pressing `")
+        return qt_app, overlay
+
+    except Exception as e:
+        print(f"Overlay unavailable: {e}")
+        return None, None
+
+def old_startup():
     connector.start_data_thread()
     telemetry_thread = threading.Thread(target=emit_telemetry_updates, daemon=True)
     telemetry_thread.start()
@@ -288,3 +311,51 @@ if __name__ == '__main__':
     finally:
         connector.stop_data_thread()
         connector.disconnect()
+
+
+if __name__ == '__main__':
+    overlay_enabled = False
+    if '--overlay' in sys.argv:
+        overlay_enabled = True
+    elif '--no-overlay' in sys.argv:
+        overlay_enabled = False
+    else:
+        try:
+            choice = input("Lauch with overlay? (y/N): ").lower().strip()
+            overlay_enabled = choice == 'y'
+        except (KeyboardInterrupt, EOFError):
+            print("\nStarting without overlay...")
+            overlay_enabled = False
+
+    qt_app, overlay = None, None
+    if overlay_enabled:
+        qt_app, overlay = start_overlay()
+
+    connector.start_data_thread()
+
+    telemetry_thread = threading.Thread(target=emit_telemetry_updates, daemon=True)
+    telemetry_thread.start()
+
+    try:
+        print(f"Server is starting at http://127.0.0.1:5000")
+        if overlay:
+            print("Overlay is starting: ` to show/hide")
+
+        if qt_app and overlay:
+            flask_thread = threading.Thread(
+                target=lambda: socketio.run(app, host='127.0.0.1', port=5000, debug=False, use_reloader=False),
+                daemon=True
+            )
+            flask_thread.start()
+
+            qt_app.exec_()
+        else:
+            socketio.run(app, host='127.0.0.1', port=5000, debug=True, use_reloader=False)
+
+    except KeyboardInterrupt:
+        print("\nShutdown...")
+    finally:
+        connector.stop_data_thread()
+        connector.disconnect()
+        if qt_app:
+            qt_app.quit()
